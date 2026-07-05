@@ -25,9 +25,9 @@ def clean_text(text: str) -> str:
 
 
 class EmotionPredictor:
-    def __init__(self):
+    def __init__(self, model_path=None):  # Accepts the file path parameter safely
         self.classes = ['Bored', 'Confident', 'Confused', 'Curious', 'Frustrated']
-
+        
     def predict(self, text: str) -> Dict[str, Any]:
         """Generates unified prediction schema matching the explicit BiLSTM platform blueprint."""
         cleaned = clean_text(text)
