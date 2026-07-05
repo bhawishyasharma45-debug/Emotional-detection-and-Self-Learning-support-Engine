@@ -1,6 +1,27 @@
 import streamlit as st
 from src.predict import EmotionOrchestrator
 
+# Emoji dictionary mapping for mixed sentiment visualization
+EMOTION_RESPONSES = {
+    'Bored': {'emoji': '🥱'},
+    'Confident': {'emoji': '😎'},
+    'Confused': {'emoji': '😕'},
+    'Curious': {'emoji': '🤔'},
+    'Frustrated': {'emoji': '😤'}
+}
+
+# Function to detect mixed sentiment matching Epic 3 workspace thresholds
+def get_mixed_emotions(scores, threshold=0.15):
+    sorted_emotions = sorted(scores.items(), key=lambda x: x[1], reverse=True)
+    primary = sorted_emotions[0]
+    mixed = [primary]
+    
+    for emotion, score in sorted_emotions[1:]:
+        if score >= threshold:
+            mixed.append((emotion, score))
+            
+    return mixed if len(mixed) > 1 else [primary]
+
 # Initialize the master engine backend
 @st.cache_resource
 def load_engine():
@@ -41,12 +62,25 @@ with col2:
                 # Execute full backend pipeline
                 results = engine.analyze_student_state(student_text)
                 
-                # Display dominant state metrics
-                st.metric(label="Detected Dominant Emotion", value=results["dominant_emotion"])
+                # Process scores for mixed emotion validation
+                mixed_emotions = get_mixed_emotions(results["predictions"])
                 
-                # Show ensemble confidence chart
-                st.write("**Ensemble Probability Metrics:**")
-                st.bar_chart(results["predictions"])
+                # Dynamic Metric Rendering Block
+                if len(mixed_emotions) > 1:
+                    mixed_text = " + ".join([f"{EMOTION_RESPONSES[em[0]]['emoji']} {em[0]}" for em in mixed_emotions])
+                    st.metric("Mixed Emotions", mixed_text, f"Primary: {mixed_emotions[0][1]:.1%}")
+                else:
+                    emo_name = mixed_emotions[0][0]
+                    emo_score = mixed_emotions[0][1]
+                    emoji = EMOTION_RESPONSES[emo_name]['emoji']
+                    st.metric("Emotion", f"{emoji} {emo_name}", f"{emo_score:.1%}")
+                
+                # Show explicit breakdown via progress bars sorted by confidence score descending
+                st.write("**Ensemble Probability Breakdown:**")
+                for emotion_name, score in sorted(results["predictions"].items(), key=lambda x: x[1], reverse=True):
+                    st.progress(score, text=f"{emotion_name}: {score:.1%}")
+                
+                st.divider()
                 
                 # Print Generative Response
                 st.success("**Empathetic AI Response:**")
