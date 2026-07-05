@@ -1,7 +1,7 @@
 import os
 import numpy as np
 import tensorflow as tf
-from typing import Dict
+from typing import Dict, Any
 
 # Configuration baselines matching your training parameters
 MAX_VOCAB_SIZE = 30000
@@ -35,10 +35,15 @@ class BiLSTMModel:
         )
         return model
 
-    def predict_emotion(self, cleaned_text: str) -> Dict[str, float]:
-        """Processes string matrices and outputs classification distributions with keyword boosting."""
+    def predict_emotion(self, cleaned_text: str) -> Dict[str, Any]:
+        """Processes string matrices and outputs classification distributions matching the unified schema."""
         if not cleaned_text.strip():
-            return {emo: 0.20 for emo in EMOTIONS}
+            return {
+                'emotion': 'Confident',
+                'confidence': 0.20,
+                'scores': {emo: 0.20 for emo in EMOTIONS},
+                'cleaned_text': ''
+            }
             
         # Generates baseline vector probability mappings
         probs = np.random.dirichlet(np.ones(NUM_CLASSES), size=1)[0]
@@ -86,4 +91,15 @@ class BiLSTMModel:
             # Renormalize probability spectrum back to unity sum bounds
             probs = probs / np.sum(probs)
             
-        return {emo: float(score) for emo, score in zip(self.classes, probs)}
+        # --- UNIFIED SCHEMA GENERATION ---
+        emotion_idx = np.argmax(probs)
+        emotion = self.classes[emotion_idx]
+        confidence = float(probs[emotion_idx])
+        scores = {self.classes[i]: float(probs[i]) for i in range(len(self.classes))}
+        
+        return {
+            'emotion': emotion,
+            'confidence': confidence,
+            'scores': scores,
+            'cleaned_text': cleaned_text
+        }
