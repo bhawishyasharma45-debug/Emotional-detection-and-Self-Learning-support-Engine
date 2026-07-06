@@ -6,7 +6,11 @@ import google.generativeai as genai
 from src.preprocessing import clean_text, EmotionPredictor, EMOTION_RESPONSES
 from src.bert_model import BERTEmotionClassifier
 
-# --- GEMINI 2.5 CORE CONFIGURATION ---
+# Initialize session state tracking matrix if missing
+if "history" not in st.session_state:
+    st.session_state.history = []
+
+# --- GEMINI CORE CONFIGURATION ---
 try:
     genai.configure(api_key=os.getenv("GEMINI_API_KEY", ""))
     model_gemini = genai.GenerativeModel('gemini-2.5-flash')
@@ -44,7 +48,7 @@ Use simple, clear language. Keep each point to 1-2 sentences. No markdown format
         response = model_gemini.generate_content(prompt)
         return response.text.strip()
     except Exception as e:
-        raise e
+        return f"AI response unavailable: {e}"
 
 def save_to_csv(field, problem, emotion, confidence, ai_response):
     try:
@@ -66,6 +70,20 @@ def save_to_csv(field, problem, emotion, confidence, ai_response):
     except:
         return False
 
+def add_to_history(field, problem, emotion, confidence, ai_response, bilstm_scores, bert_result):
+    """Appends session matrices to memory arrays to track execution trends across toggles."""
+    interaction_record = {
+        "field": field,
+        "problem": problem,
+        "emotion": emotion,
+        "confidence": confidence,
+        "ai_response": ai_response,
+        "bilstm_scores": bilstm_scores,
+        "bert_scores": bert_result['scores'] if bert_result else None,
+        "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    }
+    st.session_state.history.append(interaction_record)
+
 def get_mixed_emotions(scores, threshold=0.15):
     sorted_emotions = sorted(scores.items(), key=lambda x: x[1], reverse=True)
     primary = sorted_emotions[0]
@@ -75,10 +93,9 @@ def get_mixed_emotions(scores, threshold=0.15):
             mixed.append((emotion, score))
     return mixed if len(mixed) > 1 else [primary]
 
-# Initialize engines
+# Initialize model engines
 bilstm_model, bert_model, status_msg = load_models()
 
-# UI Layout Configuration
 st.set_page_config(page_title="Learning Support Engine", page_icon="🎓", layout="wide")
 st.title("🎓 Emotion & Learning Support Engine")
 st.write("Analyze student sentiment states and generate empathetic AI feedback responses instantly.")
@@ -103,64 +120,78 @@ def main():
             height=120
         )
         
+    # --- VERBATIM SETTINGS CONTROL BLOCK FROM 0a44adae-d1d9-46f8-b1f0-8482290863e9 ---
+    with col2:
+        st.subheader("⚙️ Settings")
+        use_ai = st.checkbox("Use AI Response (Gemini)", value=True)
+        save_data = st.checkbox("Save to CSV for learning", value=True)
+        show_details = st.checkbox("Show analysis details", value=False)
+        
     st.write("")
 
+    # --- VERBATIM RESPONSE REGENERATION LOGIC FROM d032a11f-c5b7-40dc-a43a-6bf86dcb3f3a ---
+    # Analysis button
     if st.button("🔍 Get AI Learning Help", type="primary", use_container_width=True):
         if problem.strip():
             with st.spinner("Analyzing your learning state..."):
+                # Get predictions from models
                 bilstm_result = bilstm_model.predict(problem)
                 bert_result = bert_model.predict(problem) if bert_model else None
                 
-                emotion = bilstm_result['emotion']
-                confidence = bilstm_result['confidence']
+                # Use BiLSTM result for AI response (or you can choose based on confidence)
+                emotion_result = bilstm_result
+                emotion = emotion_result['emotion']
+                confidence = emotion_result['confidence']
                 
-                # --- LIVE ROUTING CORE ENGINE SWITCH ---
-                use_ai = bool(os.getenv("GEMINI_API_KEY")) and model_gemini is not None
-                
+                # Get AI response
                 if use_ai:
-                    try:
-                        ai_response = get_gemini_response(field, problem, emotion, confidence)
-                    except Exception:
-                        use_ai = False
-                
-                if not use_ai:
+                    ai_response = get_gemini_response(field, problem, emotion, confidence)
+                else:
                     ai_response = EMOTION_RESPONSES[emotion]['response']
-                
-                # --- UI Rendering Blocks ---
-                with col1:
-                    st.write("**BiLSTM Model Matrix**")
-                    bilstm_mixed = get_mixed_emotions(bilstm_result['scores'])
-                    if len(bilstm_mixed) > 1:
-                        mixed_text = " + ".join([f"{EMOTION_RESPONSES[em[0]]['emoji']} {em[0]}" for em in bilstm_mixed])
-                        st.metric("Mixed Emotions", mixed_text, f"Primary: {bilstm_mixed[0][1]:.1%}")
-                    else:
-                        emoji = EMOTION_RESPONSES[emotion]['emoji']
-                        st.metric("Emotion", f"{emoji} {emotion}", f"{confidence:.1%}")
+                    
+                # Save to CSV
+                if save_data:
+                    save_success = save_to_csv(field, problem, emotion, confidence, ai_response)
+                    if save_success:
+                        st.success("💾 Interaction saved to improve future responses!")
                         
-                    for emo_name, score in sorted(bilstm_result['scores'].items(), key=lambda x: x[1], reverse=True):
-                        st.progress(score, text=f"{emo_name}: {score:.1%}")
+                # Add to session history
+                add_to_history(field, problem, emotion, confidence, ai_response, bilstm_result['scores'], bert_result)
                 
-                if bert_result:
-                    with col2:
-                        st.write("**BERT Transformer**")
-                        bert_mixed = get_mixed_emotions(bert_result['scores'])
-                        if len(bert_mixed) > 1:
-                            mixed_text = " + ".join([f"{EMOTION_RESPONSES[em[0]]['emoji']} {em[0]}" for em in bert_mixed])
-                            st.metric("Mixed Emotions", mixed_text, f"Primary: {bert_mixed[0][1]:.1%}")
+                # --- CONDITIONALLY RENDER INTERFACE METRICS BASED ON SHOW_DETAILS ---
+                if show_details:
+                    st.divider()
+                    detail_col1, detail_col2 = st.columns([1, 1])
+                    
+                    with detail_col1:
+                        st.write("**BiLSTM Model Matrix**")
+                        bilstm_mixed = get_mixed_emotions(bilstm_result['scores'])
+                        if len(bilstm_mixed) > 1:
+                            mixed_text = " + ".join([f"{EMOTION_RESPONSES[em[0]]['emoji']} {em[0]}" for em in bilstm_mixed])
+                            st.metric("Mixed Emotions", mixed_text, f"Primary: {bilstm_mixed[0][1]:.1%}")
                         else:
-                            bert_emoji = EMOTION_RESPONSES[bert_result['emotion']]['emoji']
-                            st.metric("Emotion", f"{bert_emoji} {bert_result['emotion']}", f"{bert_result['confidence']:.1%}")
+                            emoji = EMOTION_RESPONSES[emotion]['emoji']
+                            st.metric("Emotion", f"{emoji} {emotion}", f"{confidence:.1%}")
                             
-                        for emo_name, score in sorted(bert_result['scores'].items(), key=lambda x: x[1], reverse=True):
+                        for emo_name, score in sorted(bilstm_result['scores'].items(), key=lambda x: x[1], reverse=True):
                             st.progress(score, text=f"{emo_name}: {score:.1%}")
+                    
+                    if bert_result:
+                        with detail_col2:
+                            st.write("**BERT Transformer**")
+                            bert_mixed = get_mixed_emotions(bert_result['scores'])
+                            if len(bert_mixed) > 1:
+                                mixed_text = " + ".join([f"{EMOTION_RESPONSES[em[0]]['emoji']} {em[0]}" for em in bert_mixed])
+                                st.metric("Mixed Emotions", mixed_text, f"Primary: {bert_mixed[0][1]:.1%}")
+                            else:
+                                bert_emoji = EMOTION_RESPONSES[bert_result['emotion']]['emoji']
+                                st.metric("Emotion", f"{bert_emoji} {bert_result['emotion']}", f"{bert_result['confidence']:.1%}")
+                                
+                            for emo_name, score in sorted(bert_result['scores'].items(), key=lambda x: x[1], reverse=True):
+                                st.progress(score, text=f"{emo_name}: {score:.1%}")
                 
-                # Persistent Data Logging Tracker
-                save_to_csv(field, problem, emotion, confidence, ai_response)
-                
-                # Presentation Layout Result
+                # Unified Response Presentation Output Window
                 st.divider()
-                if not use_ai:
-                    st.warning(f"⚠️ API Fallback Action Triggered: {EMOTION_RESPONSES[emotion]['action']}")
                 st.success("**Empathetic AI Response:**")
                 st.write(ai_response)
         else:
