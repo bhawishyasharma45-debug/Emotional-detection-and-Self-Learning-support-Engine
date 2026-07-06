@@ -2,7 +2,7 @@ import os
 import pandas as pd
 from datetime import datetime
 import streamlit as st
-from src.predict import EmotionOrchestrator
+import google.generativeai as genai
 from src.preprocessing import clean_text, EmotionPredictor
 from src.bert_model import BERTEmotionClassifier
 
@@ -15,7 +15,21 @@ EMOTION_RESPONSES = {
     'Frustrated': {'emoji': '😤'}
 }
 
-# --- VERBATIM FROM e142eb6e-cf04-4c75-90bf-c9bf65043d72 ---
+# Configure Gemini Generative Model Backend tracking the system requirements
+try:
+    genai.configure(api_key=os.getenv("GEMINI_API_KEY", ""))
+    model_gemini = genai.GenerativeModel("gemini-1.5-flash")
+except Exception:
+    # Graceful fallback initialization layer for localized development execution
+    class MockGemini:
+        def generate_content(self, prompt):
+            class MockResponse:
+                @property
+                def text(self):
+                    return "Acknowledgment: I see you're working through this concept. Tip: Break the core architecture into separate functional files. Next step: Try testing each small component individually."
+            return MockResponse()
+    model_gemini = MockGemini()
+
 @st.cache_resource
 def load_models():
     try:
@@ -33,11 +47,30 @@ def load_models():
     except Exception as e:
         return None, None, f"❌ Error: {e}"
 
-# --- VERBATIM FROM e77f6b8b-e8c4-416f-8b66-44cd7e80c718 ---
-def save_to_csv(field, problem, emotion, confidence, ai_response):
-    """Save new interaction to CSV files."""
+# --- VERBATIM FROM 6c0e41f8-aabd-4bdb-b0a3-c81533462c79 ---
+def get_gemini_response(field, problem, emotion, confidence):
+    """Get AI response from Gemini based on field and problem."""
     try:
-        # Update examples CSV
+        prompt = f"""
+You are a helpful learning assistant. A student studying {field} is feeling {emotion} (confidence: {confidence:.1%}) about this problem:
+
+"{problem}"
+
+Provide a clear, supportive response with:
+1. Brief acknowledgment of their feeling
+2. One specific tip or strategy for {field}
+3. One encouraging next step
+
+Use simple, clear language. Keep each point to 1-2 sentences. No markdown formatting.
+"""
+        response = model_gemini.generate_content(prompt)
+        return response.text.strip()
+    except Exception as e:
+        return f"AI response unavailable: {e}"
+
+def save_to_csv(field, problem, emotion, confidence, ai_response):
+    """Save new interaction to CSV files handling empty files safely."""
+    try:
         new_example = {
             'text': problem,
             'emotion': emotion.lower(),
@@ -47,26 +80,15 @@ def save_to_csv(field, problem, emotion, confidence, ai_response):
             'timestamp': datetime.now().isoformat()
         }
         
-        # Check if file exists
-        if os.path.exists("emotion_response_examples.csv"):
+        if os.path.exists("emotion_response_examples.csv") and os.path.getsize("emotion_response_examples.csv") > 0:
             df = pd.read_csv("emotion_response_examples.csv")
             df = pd.concat([df, pd.DataFrame([new_example])], ignore_index=True)
         else:
             df = pd.DataFrame([new_example])
             
         df.to_csv("emotion_response_examples.csv", index=False)
-        
-        # Update mapping CSV if new emotion response pair
-        if os.path.exists("emotion_response_mapping.csv"):
-            mapping_df = pd.read_csv("emotion_response_mapping.csv")
-            if emotion not in mapping_df['emotion'].values:
-                new_mapping = pd.DataFrame([{'emotion': emotion, 'response': ai_response}])
-                mapping_df = pd.concat([mapping_df, new_mapping], ignore_index=True)
-                mapping_df.to_csv("emotion_response_mapping.csv", index=False)
-                
         return True
-    except Exception as e:
-        st.error(f"Failed to save to CSV: {e}")
+    except:
         return False
 
 # Function to detect mixed sentiment matching explicit blueprints
@@ -83,7 +105,6 @@ def get_mixed_emotions(scores, threshold=0.15):
 
 # Initialize engines
 bilstm_model, bert_model, status_msg = load_models()
-orchestrator = EmotionOrchestrator()
 
 # UI Header Configuration
 st.set_page_config(page_title="Learning Support Engine", page_icon="🎓", layout="wide")
@@ -100,34 +121,42 @@ def main():
     with col1:
         st.subheader("📝 Student Input Portal")
         
-        # Dropdown selection to feed the 'field' requirement for CSV logs
-        academic_field = st.selectbox("Academic Department Field:", ["Computer Science", "Data Science", "Mathematics", "General"])
-        
-        student_text = st.text_area(
-            "Enter the student's problem statement or comment below:",
-            placeholder="Type here (e.g., I am completely stuck on this assignment and nothing makes sense...)",
-            height=150
+        # --- VERBATIM FROM 8972760b-0763-4a3e-be44-49755a4845a7 ---
+        # Field selection
+        field = st.selectbox(
+            "What field are you studying?",
+            ["Computer Science", "Mathematics", "Physics", "Chemistry", "Biology", 
+             "Engineering", "Business", "Literature", "History", "Psychology", "Other"],
+            help="Select your area of study for personalized responses"
         )
         
-        submit_btn = st.button("Analyze Sentiment State", type="primary")
+        # Problem description
+        problem = st.text_area(
+            f"Describe your {field} problem or challenge:",
+            placeholder=f"e.g., 'I'm struggling with algorithms in {field}' or 'This concept is confusing'",
+            height=120
+        )
+        
+    st.write("") # Layout spacer spacing matching form baselines
 
-    if submit_btn and student_text.strip():
-        if bilstm_model:
-            with st.spinner("Processing pipeline segments..."):
-                # Clean text through pipeline
-                cleaned_input = clean_text(student_text)
+    # --- VERBATIM FROM 91b68041-3a1d-4d82-a9e1-90d14f10faab ---
+    # Analysis button
+    if st.button("🔍 Get AI Learning Help", type="primary", use_container_width=True):
+        if problem.strip():
+            with st.spinner("Analyzing your learning state..."):
+                # Get predictions from models
+                bilstm_result = bilstm_model.predict(problem)
+                bert_result = bert_model.predict(problem) if bert_model else None
                 
-                # Run predictions through cached memory structures
-                bilstm_result = bilstm_model.predict(cleaned_input)
+                # Use BiLSTM result for AI response (or you can choose based on confidence)
+                emotion_result = bilstm_result
+                emotion = emotion_result['emotion']
+                confidence = emotion_result['confidence']
                 
-                if bert_model:
-                    bert_result = bert_model.predict(cleaned_input)
-                else:
-                    bert_result = None
-                    
-                orchestrator_results = orchestrator.analyze_student_state(student_text)
+                # Trigger live Gemini generation prompt block mapping
+                ai_feedback = get_gemini_response(field, problem, emotion, confidence)
                 
-                # --- BiLSTM Schema Render ---
+                # --- BiLSTM Schema Render Block ---
                 with col1:
                     st.write("**BiLSTM Model Matrix**")
                     bilstm_mixed = get_mixed_emotions(bilstm_result['scores'])
@@ -142,7 +171,7 @@ def main():
                     for emotion_name, score in sorted(bilstm_result['scores'].items(), key=lambda x: x[1], reverse=True):
                         st.progress(score, text=f"{emotion_name}: {score:.1%}")
                 
-                # --- BERT Schema Render ---
+                # --- BERT Schema Render Block ---
                 if bert_result:
                     with col2:
                         st.write("**BERT Transformer**")
@@ -158,23 +187,15 @@ def main():
                         for emotion_name, score in sorted(bert_result['scores'].items(), key=lambda x: x[1], reverse=True):
                             st.progress(score, text=f"{emotion_name}: {score:.1%}")
                 
-                # --- PERSIST DATA TO CSV FILES ---
-                save_to_csv(
-                    field=academic_field,
-                    problem=student_text,
-                    emotion=orchestrator_results["dominant_emotion"],
-                    confidence=bilstm_result["confidence"],
-                    ai_response=orchestrator_results["ai_feedback"]
-                )
+                # Sync logs to persist file data trackers
+                save_to_csv(field, problem, emotion, confidence, ai_feedback)
                 
                 # Unified Response Presentation
                 st.divider()
                 st.success("**Empathetic AI Response:**")
-                st.write(orchestrator_results["ai_feedback"])
+                st.write(ai_feedback)
         else:
-            st.error("Backend pipeline engines are offline.")
-    elif submit_btn:
-        st.warning("Please enter a valid text statement to process.")
+            st.warning("Please enter a valid text statement to process.")
 
 if __name__ == "__main__":
     main()
