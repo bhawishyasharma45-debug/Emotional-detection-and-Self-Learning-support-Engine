@@ -53,7 +53,6 @@ Use simple, clear language. Keep each point to 1-2 sentences. No markdown format
 def save_to_csv(field, problem, emotion, confidence, ai_response):
     """Save new interaction to CSV files."""
     try:
-        # Update examples CSV
         new_example = {
             'text': problem,
             'emotion': emotion.lower(),
@@ -70,7 +69,6 @@ def save_to_csv(field, problem, emotion, confidence, ai_response):
             df = pd.DataFrame([new_example])
         df.to_csv("emotion_response_examples.csv", index=False)
         
-        # Update mapping CSV if new emotion-response pair
         if os.path.exists("emotion_response_mapping.csv") and os.path.getsize("emotion_response_mapping.csv") > 0:
             mapping_df = pd.read_csv("emotion_response_mapping.csv")
             if emotion not in mapping_df['emotion'].values:
@@ -87,22 +85,18 @@ def save_to_csv(field, problem, emotion, confidence, ai_response):
         return False
 
 def add_to_history(field, problem, emotion, confidence, ai_response, bilstm_scores, bert_result=None):
-    # Detect mixed emotions for history
     def get_mixed_emotions(scores, threshold=0.15):
         sorted_emotions = sorted(scores.items(), key=lambda x: x[1], reverse=True)
         primary = sorted_emotions[0]
         mixed = [primary]
-        
         for emotion_name, score in sorted_emotions[1:]:
             if score >= threshold:
                 mixed.append((emotion_name, score))
-                
         return mixed if len(mixed) > 1 else [primary]
         
     mixed_emotions = get_mixed_emotions(bilstm_scores)
     emotion_label = " + ".join([em[0] for em in mixed_emotions]) if len(mixed_emotions) > 1 else emotion
     
-    # Add BiLSTM entry
     st.session_state.emotion_history.append({
         'timestamp': datetime.now(),
         'field': field,
@@ -114,7 +108,6 @@ def add_to_history(field, problem, emotion, confidence, ai_response, bilstm_scor
         'model': 'BiLSTM'
     })
     
-    # Add BERT entry if available
     if bert_result:
         bert_mixed = get_mixed_emotions(bert_result['scores'])
         bert_emotion_label = " + ".join([em[0] for em in bert_mixed]) if len(bert_mixed) > 1 else bert_result['emotion']
@@ -248,7 +241,7 @@ def main():
                 st.divider()
                 st.success("**Empathetic AI Response:**")
                 st.write(ai_response)
-                st.rerun()
+                # FIX: Removed st.rerun() here so components persist on screen!
         else:
             st.warning("Please enter a valid text statement to process.")
 
