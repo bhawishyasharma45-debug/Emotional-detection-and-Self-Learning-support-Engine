@@ -41,8 +41,8 @@ class BERTEmotionClassifier:
         text_lower = text.lower()
         
         if self.model is None:
-            # Context routing setup for mock transformer execution vectors
-            if any(word in text_lower for word in ['accident', 'hurt', 'bad', 'fail', 'error', 'stuck', 'sad', 'wrong', 'frustrated']):
+            # Enhanced context routing setup for mock transformer execution vectors
+            if any(word in text_lower for word in ['accident', 'hurt', 'bad', 'fail', 'error', 'stuck', 'sad', 'wrong', 'frustrated', 'struggle', 'struggling', 'hard', 'difficulties']):
                 probs = np.array([0.05, 0.05, 0.05, 0.05, 0.80])  # Dynamic tilt to Frustrated
             elif any(word in text_lower for word in ['confused', 'lost', 'help', 'unclear', 'unsure', "don't understand"]):
                 probs = np.array([0.05, 0.05, 0.80, 0.05, 0.05])  # Dynamic tilt to Confused
@@ -67,13 +67,15 @@ class BERTEmotionClassifier:
         # Keyword-based adjustments
         confidence_keywords = ['comfortable', 'confident', 'easy', 'clear', 'understand', 'got it', 'makes sense']
         confusion_keywords = ['confused', 'unclear', 'lost', "don't understand", 'puzzled']
+        frustration_keywords = ['frustrated', 'frustrating', 'annoying', 'angry', 'hate', 'difficult', 'stuck', 'wrong answer', 'keep getting', 'unnecessarily complicated', 'tried', 'struggle', 'struggling', 'hard', 'difficulties']
 
-        # Boost confidence if confidence keywords found
-        if any(keyword in text_lower for keyword in confidence_keywords):
+        # Prioritize roadblock detection over generic positive words to stop overly optimistic outputs
+        if any(keyword in text_lower for keyword in frustration_keywords):
+            class_weights[4] *= 3.0  # Boost Frustrated
+            class_weights[1] *= 0.2  # Heavily suppress Confident
+        elif any(keyword in text_lower for keyword in confidence_keywords):
             class_weights[1] *= 2.5  # Boost Confident
             class_weights[2] *= 0.3  # Reduce Confused
-
-        # Only boost confusion if explicit confusion keywords found
         elif any(keyword in text_lower for keyword in confusion_keywords):
             class_weights[2] *= 2.0  # Boost Confused
 

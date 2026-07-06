@@ -48,9 +48,9 @@ class BiLSTMModel:
         text_lower = cleaned_text.lower()
         cleaned = cleaned_text
         
-        # 1. Define expanded contextual keyword matrices
+        # 1. Define expanded contextual keyword matrices including struggle parameters
         emotion_keywords = {
-            'Frustrated': ['frustrated', 'frustrating', 'annoying', 'angry', 'hate', 'difficult', 'stuck', 'wrong answer', 'keep getting', 'unnecessarily complicated', 'tried', 'accident', 'hurt', 'bad', 'fail', 'failed', 'error', 'broken', 'crashing'],
+            'Frustrated': ['frustrated', 'frustrating', 'annoying', 'angry', 'hate', 'difficult', 'stuck', 'wrong answer', 'keep getting', 'unnecessarily complicated', 'tried', 'accident', 'hurt', 'bad', 'fail', 'failed', 'error', 'broken', 'crashing', 'struggle', 'struggling', 'hard', 'difficulties'],
             'Curious': ['why', 'how', 'what', 'curious', 'wonder', 'interested', 'learn', 'know more', 'want to know', 'explore', 'could we', 'what happens', 'intuition', 'bel'],
             'Confident': ['easy', 'amazing', 'great', 'excellent', 'good', 'awesome', 'perfect', 'solved', 'got it', 'clear now', 'finally', 'move ahead', 'understand clearly', '100', 'marks', 'score', 'pass', 'birthday', 'happy'],
             'Bored': ['boring', 'bored', 'tired', 'repetitive', 'dull', 'not engaging', 'didnt feel engaging', 'not interesting', 'too basic', 'losing'],
@@ -63,7 +63,7 @@ class BiLSTMModel:
             score = 0
             for keyword in keywords:
                 if keyword in text_lower:
-                    if keyword in ['frustrated', 'frustrating', 'curious', 'confident', 'bored', 'boring', 'confused']:
+                    if keyword in ['frustrated', 'frustrating', 'curious', 'confident', 'bored', 'boring', 'confused', 'struggle', 'struggling']:
                         score += 10  # Explicit high weight
                     else:
                         score += 2   # Contextual helper weight
@@ -86,7 +86,7 @@ class BiLSTMModel:
             probs = probs / np.sum(probs)
         else:
             # Context routing matrix for texts without explicit primary emotion words
-            if any(word in text_lower for word in ['accident', 'hurt', 'bad', 'fail', 'error', 'stuck', 'sad', 'wrong']):
+            if any(word in text_lower for word in ['accident', 'hurt', 'bad', 'fail', 'error', 'stuck', 'sad', 'wrong', 'struggle', 'struggling', 'hard']):
                 probs = np.array([0.05, 0.05, 0.05, 0.05, 0.80])  # Dynamic tilt to Frustrated
             elif any(word in text_lower for word in ['confused', 'lost', 'help', 'unclear', 'unsure']):
                 probs = np.array([0.05, 0.05, 0.80, 0.05, 0.05])  # Dynamic tilt to Confused
