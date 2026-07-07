@@ -6,9 +6,19 @@ import google.generativeai as genai
 from src.preprocessing import clean_text, EmotionPredictor, EMOTION_RESPONSES
 from src.bert_model import BERTEmotionClassifier
 
-# --- VERBATIM SESSION STATE MANAGEMENT INITIALIZATION ---
+# --- INITIALIZE SESSION STATE LAYERS ---
 if "emotion_history" not in st.session_state:
     st.session_state.emotion_history = []
+if "authenticated" not in st.session_state:
+    st.session_state.authenticated = False
+if "username" not in st.session_state:
+    st.session_state.username = ""
+
+# --- MOCK USER CREDENTIAL DATABASE ---
+USER_CREDENTIALS = {
+    "student1": "password123",
+    "naman_gaur": "securepass"
+}
 
 # --- GEMINI CORE CONFIGURATION ---
 try:
@@ -89,9 +99,11 @@ def add_to_history(field, problem, emotion, confidence, ai_response, bilstm_scor
         sorted_emotions = sorted(scores.items(), key=lambda x: x[1], reverse=True)
         primary = sorted_emotions[0]
         mixed = [primary]
+        
         for emotion_name, score in sorted_emotions[1:]:
             if score >= threshold:
                 mixed.append((emotion_name, score))
+                
         return mixed if len(mixed) > 1 else [primary]
         
     mixed_emotions = get_mixed_emotions(bilstm_scores)
@@ -132,38 +144,67 @@ def get_mixed_emotions_ui(scores, threshold=0.15):
             mixed.append((emotion, score))
     return mixed if len(mixed) > 1 else [primary]
 
-# Initialize models
+# Initialize model components
 bilstm_model, bert_model, status_msg = load_models()
 
 st.set_page_config(page_title="Learning Support Engine", page_icon="🎓", layout="wide")
-st.title("🎓 Emotion & Learning Support Engine")
-st.write("Analyze student sentiment states and generate empathetic AI feedback responses instantly.")
 
-# --- SIDEBAR DASHBOARD DISPLAY ---
-with st.sidebar:
-    st.header("📊 Dashboard")
-    st.write(f"Models: {status_msg}")
-    st.write(f"Total Interactions: {len(st.session_state.emotion_history)}")
+# --- AUTHENTICATION SCREEN VIEW ---
+def show_login_page():
+    st.title("🎓 Learning Support Portal Login")
+    st.write("Please sign in to access the Emotion & Learning Support Engine.")
     
-    if os.path.exists("emotion_response_examples.csv") and os.path.getsize("emotion_response_examples.csv") > 0:
-        examples_df = pd.read_csv("emotion_response_examples.csv")
-        csv_count = len(examples_df)
-    else:
-        csv_count = 0
-    st.write(f"CSV Examples: {csv_count}")
-    
-    if st.button("Clear History"):
-        st.session_state.emotion_history = []
-        st.rerun()
+    with st.form("login_form"):
+        username_input = st.text_input("Username")
+        password_input = st.text_input("Password", type="password")
+        submit_button = st.form_submit_button("Sign In")
         
-    st.subheader("Recent Sessions")
-    recent = st.session_state.emotion_history[-3:]
-    for item in reversed(recent):
-        st.write(f"• {item['field']}: {item['emotion']} ({item['confidence']:.1%})")
+        if submit_button:
+            if username_input in USER_CREDENTIALS and USER_CREDENTIALS[username_input] == password_input:
+                st.session_state.authenticated = True
+                st.session_state.username = username_input
+                st.success("Successfully logged in!")
+                st.rerun()
+            else:
+                st.error("Invalid username or password. Please try again.")
 
-st.divider()
+# --- MAIN DASHBOARD VIEW ---
+def show_dashboard():
+    st.title("🎓 Emotion & Learning Support Engine")
+    st.write(f"Welcome back, **{st.session_state.username}**! Analyze student sentiment states instantly.")
 
-def main():
+    # --- SIDEBAR DASHBOARD DISPLAY WITH INTEGRATED LOGOUT ---
+    with st.sidebar:
+        st.header("📊 Dashboard")
+        st.write(f"Active User: `{st.session_state.username}`")
+        st.write(f"Models: {status_msg}")
+        st.write(f"Total Interactions: {len(st.session_state.emotion_history)}")
+        
+        if os.path.exists("emotion_response_examples.csv") and os.path.getsize("emotion_response_examples.csv") > 0:
+            examples_df = pd.read_csv("emotion_response_examples.csv")
+            csv_count = len(examples_df)
+        else:
+            csv_count = 0
+        st.write(f"CSV Examples: {csv_count}")
+        
+        col_clear, col_logout = st.columns(2)
+        with col_clear:
+            if st.button("Clear History", use_container_width=True):
+                st.session_state.emotion_history = []
+                st.rerun()
+        with col_logout:
+            if st.button("Sign Out", type="secondary", use_container_width=True):
+                st.session_state.authenticated = False
+                st.session_state.username = ""
+                st.rerun()
+            
+        st.subheader("Recent Sessions")
+        recent = st.session_state.emotion_history[-3:]
+        for item in reversed(recent):
+            st.write(f"• {item['field']}: {item['emotion']} ({item['confidence']:.1%})")
+
+    st.divider()
+
     col1, col2 = st.columns([1, 1])
 
     with col1:
@@ -237,13 +278,17 @@ def main():
                                 
                             for emo_name, score in sorted(bert_result['scores'].items(), key=lambda x: x[1], reverse=True):
                                 st.progress(score, text=f"{emo_name}: {score:.1%}")
-                
-                st.divider()
-                st.success("**Empathetic AI Response:**")
-                st.write(ai_response)
-                # FIX: Removed st.rerun() here so components persist on screen!
+            
+            # --- PERSISTENT MAIN RESPONSE RENDERING BLOCK (OUTSIDE DETAILS/SPINNER) ---
+            st.divider()
+            st.success("**Empathetic AI Response:**")
+            st.write(ai_response)
         else:
             st.warning("Please enter a valid text statement to process.")
 
+# --- APPLICATION ROUTING SWITCH ---
 if __name__ == "__main__":
-    main()
+    if st.session_state.authenticated:
+        show_dashboard()
+    else:
+        show_login_page()
