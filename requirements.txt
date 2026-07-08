@@ -1,15 +1,28 @@
+# Core ML / data
 tensorflow==2.17.0
 numpy==1.26.4
 pandas==2.2.2
 scikit-learn==1.3.2
 scipy==1.11.4
-matplotlib==3.8.3
-seaborn==0.13.0
 nltk==3.8.1
+
+# Deep learning (BERT)
 transformers==4.35.2
 torch==2.1.2
+
+# Visualization
+matplotlib==3.8.3
+seaborn==0.13.0
 plotly==5.18.0
+
+# Protobuf (TF compatibility)
 protobuf==4.24.4
-python-dotenv
-streamlit
-google-generativeai
+
+# Web framework
+streamlit>=1.35.0
+
+# AI / LLM
+google-generativeai>=0.7.0
+
+# Env management
+python-dotenv>=1.0.0

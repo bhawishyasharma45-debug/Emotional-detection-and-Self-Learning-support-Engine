@@ -1,3 +1,51 @@
+# ── Virtual environments ──
 .venv/
+venv/
+env/
+
+# ── Environment variables ──
 .env
+.env.*
+
+# ── Streamlit secrets (never commit real secrets) ──
+.streamlit/secrets.toml
+
+# ── User data (persisted locally / on server, not in git) ──
+users.json
+
+# ── Python cache ──
 **/__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+
+# ── Jupyter ──
+.ipynb_checkpoints/
+*.ipynb
+
+# ── Trained model weights (large binary files) ──
+models/
+*.h5
+*.keras
+*.pt
+*.bin
+*.safetensors
+
+# ── Data / CSV outputs ──
+data/*.csv
+emotion_response_examples.csv
+emotion_response_mapping.csv
+
+# ── OS artifacts ──
+.DS_Store
+Thumbs.db
+
+# ── IDE ──
+.vscode/
+.idea/
+
+# ── Build / dist ──
+dist/
+build/
+*.egg-info/
