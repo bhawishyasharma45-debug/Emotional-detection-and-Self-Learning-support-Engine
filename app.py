@@ -437,8 +437,9 @@ def show_dashboard():
 # ─────────────────────────────────────────────
 # APPLICATION ENTRY POINT
 # ─────────────────────────────────────────────
-if __name__ == "__main__":
-    if st.session_state.authenticated:
-        show_dashboard()
-    else:
-        show_auth_page()
+# NOTE: Do NOT use `if __name__ == "__main__":` with Streamlit.
+# Streamlit imports app.py as a module, so that block never runs.
+if st.session_state.authenticated:
+    show_dashboard()
+else:
+    show_auth_page()
