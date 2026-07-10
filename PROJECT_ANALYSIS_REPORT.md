@@ -24,4 +24,4 @@ The successful build of this system marks an important milestone in adaptive, da
 Future scope for extending this system includes:
 1. **Multimodal Analysis:** Integrating audio processing for voice tone modulation mapping and video framing engines to interpret facial expressions along with written student text inputs.
 2. **Dynamic Learning Recommender:** Coupling the emotion tracker directly to automated educational playlists, triggering instant targeted conceptual walkthroughs whenever sustained *Frustrated* or *Confused* indicators are logged.
-3.
+  
