@@ -1,6 +1,4 @@
 import os
-import json
-import hashlib
 import pandas as pd
 from datetime import datetime
 import streamlit as st
@@ -9,81 +7,11 @@ from src.preprocessing import clean_text, EmotionPredictor, EMOTION_RESPONSES
 from src.bert_model import BERTEmotionClassifier
 
 # ─────────────────────────────────────────────
-# CONSTANTS
-# ─────────────────────────────────────────────
-USERS_FILE = "users.json"
-
-# ─────────────────────────────────────────────
-# USER PERSISTENCE HELPERS
-# ─────────────────────────────────────────────
-def _hash_password(password: str) -> str:
-    """Return SHA-256 hex digest of the password."""
-    return hashlib.sha256(password.encode()).hexdigest()
-
-
-def load_users() -> dict:
-    """Load users from JSON file. Seeds default accounts on first run."""
-    if not os.path.exists(USERS_FILE):
-        default_users = {
-            "student1": {
-                "password": _hash_password("password123"),
-                "email": "student1@example.com",
-                "created_at": datetime.now().isoformat(),
-            },
-            "naman_gaur": {
-                "password": _hash_password("securepass"),
-                "email": "naman@example.com",
-                "created_at": datetime.now().isoformat(),
-            },
-        }
-        save_users(default_users)
-        return default_users
-    with open(USERS_FILE, "r") as f:
-        return json.load(f)
-
-
-def save_users(users: dict) -> None:
-    """Persist users dict to JSON file."""
-    with open(USERS_FILE, "w") as f:
-        json.dump(users, f, indent=2)
-
-
-def register_user(username: str, email: str, password: str) -> tuple[bool, str]:
-    """
-    Register a new user. Returns (success, message).
-    Validates uniqueness of username and email.
-    """
-    users = load_users()
-    if username in users:
-        return False, "Username already exists. Please choose another."
-    if any(u["email"].lower() == email.lower() for u in users.values()):
-        return False, "An account with this email already exists."
-    users[username] = {
-        "password": _hash_password(password),
-        "email": email,
-        "created_at": datetime.now().isoformat(),
-    }
-    save_users(users)
-    return True, "Account created successfully!"
-
-
-def authenticate_user(username: str, password: str) -> bool:
-    """Return True if username/password pair is valid."""
-    users = load_users()
-    if username not in users:
-        return False
-    return users[username]["password"] == _hash_password(password)
-
-
-# ─────────────────────────────────────────────
 # SESSION STATE INITIALIZATION
 # ─────────────────────────────────────────────
 def _init_session():
     defaults = {
         "emotion_history": [],
-        "authenticated": False,
-        "username": "",
-        "auth_page": "signin",   # "signin" | "signup"
     }
     for key, val in defaults.items():
         if key not in st.session_state:
@@ -108,6 +36,16 @@ except Exception:
     model_gemini = None
 
 # ─────────────────────────────────────────────
+# PAGE CONFIG (must be first Streamlit call)
+# ─────────────────────────────────────────────
+st.set_page_config(
+    page_title="Learning Support Engine",
+    page_icon="🎓",
+    layout="wide",
+    initial_sidebar_state="collapsed",
+)
+
+# ─────────────────────────────────────────────
 # MODEL LOADING (CACHED)
 # ─────────────────────────────────────────────
 @st.cache_resource(show_spinner=False)
@@ -123,6 +61,10 @@ def load_models():
         return bilstm_model, bert_model, "✅ Models loaded"
     except Exception as e:
         return None, None, f"❌ Error: {e}"
+
+
+# Load models after page config
+bilstm_model, bert_model, status_msg = load_models()
 
 
 # ─────────────────────────────────────────────
@@ -222,106 +164,15 @@ def add_to_history(field, problem, emotion, confidence, ai_response, bilstm_scor
 
 
 # ─────────────────────────────────────────────
-# PAGE CONFIG (must be first Streamlit call)
-# ─────────────────────────────────────────────
-st.set_page_config(
-    page_title="Learning Support Engine",
-    page_icon="🎓",
-    layout="wide",
-    initial_sidebar_state="collapsed",
-)
-
-# Load models after page config
-bilstm_model, bert_model, status_msg = load_models()
-
-
-# ─────────────────────────────────────────────
-# AUTH VIEWS
-# ─────────────────────────────────────────────
-def show_auth_page():
-    """Renders the Sign In / Sign Up tabbed authentication page."""
-    # Center the auth card
-    _, center, _ = st.columns([1, 1.6, 1])
-    with center:
-        st.markdown(
-            "<h1 style='text-align:center;margin-bottom:0.2rem;'>🎓 Learning Support Engine</h1>",
-            unsafe_allow_html=True,
-        )
-        st.markdown(
-            "<p style='text-align:center;color:gray;margin-bottom:1.5rem;'>"
-            "Emotion-aware AI tutoring for students</p>",
-            unsafe_allow_html=True,
-        )
-
-        tab_signin, tab_signup = st.tabs(["🔑  Sign In", "📝  Sign Up"])
-
-        # ── SIGN IN TAB ──
-        with tab_signin:
-            with st.form("signin_form"):
-                username = st.text_input("Username", placeholder="Enter your username")
-                password = st.text_input("Password", type="password", placeholder="Enter your password")
-                submitted = st.form_submit_button("Sign In", use_container_width=True, type="primary")
-
-            if submitted:
-                if not username or not password:
-                    st.error("Please fill in all fields.")
-                elif authenticate_user(username, password):
-                    st.session_state.authenticated = True
-                    st.session_state.username = username
-                    st.success(f"Welcome back, **{username}**! 🎉")
-                    st.rerun()
-                else:
-                    st.error("Invalid username or password. Please try again.")
-
-        # ── SIGN UP TAB ──
-        with tab_signup:
-            with st.form("signup_form"):
-                new_username  = st.text_input("Username", placeholder="Choose a username (min. 3 chars)", key="su_user")
-                new_email     = st.text_input("Email", placeholder="your@email.com", key="su_email")
-                new_password  = st.text_input("Password", type="password",
-                                              placeholder="Min. 8 characters", key="su_pass")
-                confirm_pass  = st.text_input("Confirm Password", type="password",
-                                              placeholder="Repeat your password", key="su_confirm")
-                register_btn  = st.form_submit_button("Create Account", use_container_width=True, type="primary")
-
-            if register_btn:
-                # ── Input validation ──
-                errors = []
-                if not new_username or not new_email or not new_password or not confirm_pass:
-                    errors.append("All fields are required.")
-                else:
-                    if len(new_username) < 3:
-                        errors.append("Username must be at least 3 characters.")
-                    if "@" not in new_email or "." not in new_email:
-                        errors.append("Please enter a valid email address.")
-                    if len(new_password) < 8:
-                        errors.append("Password must be at least 8 characters.")
-                    if new_password != confirm_pass:
-                        errors.append("Passwords do not match.")
-
-                if errors:
-                    for err in errors:
-                        st.error(err)
-                else:
-                    success, message = register_user(new_username, new_email, new_password)
-                    if success:
-                        st.success(f"✅ {message} Please switch to Sign In to log in.")
-                        st.balloons()
-                    else:
-                        st.error(message)
-
-
-# ─────────────────────────────────────────────
 # DASHBOARD VIEW
 # ─────────────────────────────────────────────
 def show_dashboard():
     st.title("🎓 Emotion & Learning Support Engine")
-    st.write(f"Welcome back, **{st.session_state.username}**! Analyze your learning state instantly.")
+    st.write("Analyze your learning state instantly with AI-powered emotional support.")
 
     # ── Sidebar ──
     with st.sidebar:
         st.header("📊 Dashboard")
-        st.write(f"Active User: `{st.session_state.username}`")
         st.write(f"Models: {status_msg}")
         st.write(f"Total Interactions: {len(st.session_state.emotion_history)}")
 
@@ -331,16 +182,9 @@ def show_dashboard():
             csv_count = len(pd.read_csv(csv_path))
         st.write(f"CSV Examples: {csv_count}")
 
-        col_clear, col_logout = st.columns(2)
-        with col_clear:
-            if st.button("Clear History", use_container_width=True):
-                st.session_state.emotion_history = []
-                st.rerun()
-        with col_logout:
-            if st.button("Sign Out", type="secondary", use_container_width=True):
-                st.session_state.authenticated = False
-                st.session_state.username = ""
-                st.rerun()
+        if st.button("Clear History", use_container_width=True):
+            st.session_state.emotion_history = []
+            st.rerun()
 
         st.subheader("Recent Sessions")
         recent = st.session_state.emotion_history[-3:]
@@ -439,7 +283,4 @@ def show_dashboard():
 # ─────────────────────────────────────────────
 # NOTE: Do NOT use `if __name__ == "__main__":` with Streamlit.
 # Streamlit imports app.py as a module, so that block never runs.
-if st.session_state.authenticated:
-    show_dashboard()
-else:
-    show_auth_page()
+show_dashboard()
