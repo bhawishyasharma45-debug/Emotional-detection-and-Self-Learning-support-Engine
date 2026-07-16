@@ -7,6 +7,17 @@ from src.preprocessing import clean_text, EmotionPredictor, EMOTION_RESPONSES
 from src.bert_model import BERTEmotionClassifier
 
 # ─────────────────────────────────────────────
+# PAGE CONFIG — MUST be the absolute first Streamlit call
+# Nothing that touches st.* should appear before this
+# ─────────────────────────────────────────────
+st.set_page_config(
+    page_title="Learning Support Engine",
+    page_icon="🎓",
+    layout="wide",
+    initial_sidebar_state="collapsed",
+)
+
+# ─────────────────────────────────────────────
 # SESSION STATE INITIALIZATION
 # ─────────────────────────────────────────────
 def _init_session():
@@ -36,16 +47,6 @@ except Exception:
     model_gemini = None
 
 # ─────────────────────────────────────────────
-# PAGE CONFIG (must be first Streamlit call)
-# ─────────────────────────────────────────────
-st.set_page_config(
-    page_title="Learning Support Engine",
-    page_icon="🎓",
-    layout="wide",
-    initial_sidebar_state="collapsed",
-)
-
-# ─────────────────────────────────────────────
 # MODEL LOADING (CACHED)
 # ─────────────────────────────────────────────
 @st.cache_resource(show_spinner=False)
@@ -63,7 +64,6 @@ def load_models():
         return None, None, f"❌ Error: {e}"
 
 
-# Load models after page config
 bilstm_model, bert_model, status_msg = load_models()
 
 
@@ -211,8 +211,8 @@ def show_dashboard():
 
     with col2:
         st.subheader("⚙️ Settings")
-        use_ai      = st.checkbox("Use AI Response (Gemini)", value=True)
-        save_data   = st.checkbox("Save to CSV for learning", value=True)
+        use_ai       = st.checkbox("Use AI Response (Gemini)", value=True)
+        save_data    = st.checkbox("Save to CSV for learning", value=True)
         show_details = st.checkbox("Show analysis details", value=False)
 
     st.write("")
@@ -281,6 +281,4 @@ def show_dashboard():
 # ─────────────────────────────────────────────
 # APPLICATION ENTRY POINT
 # ─────────────────────────────────────────────
-# NOTE: Do NOT use `if __name__ == "__main__":` with Streamlit.
-# Streamlit imports app.py as a module, so that block never runs.
 show_dashboard()
