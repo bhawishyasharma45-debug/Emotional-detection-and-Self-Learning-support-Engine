@@ -2,7 +2,7 @@ import os
 import pandas as pd
 from datetime import datetime
 import streamlit as st
-import google.generativeai as genai
+from google import genai
 from src.preprocessing import clean_text, EmotionPredictor, EMOTION_RESPONSES
 from src.bert_model import BERTEmotionClassifier
 
@@ -41,8 +41,7 @@ try:
             api_key = st.secrets.get("GEMINI_API_KEY", "")
         except Exception:
             api_key = ""
-    genai.configure(api_key=api_key)
-    model_gemini = genai.GenerativeModel("gemini-2.5-flash")
+    model_gemini = genai.Client(api_key=api_key) if api_key else None
 except Exception:
     model_gemini = None
 
@@ -83,7 +82,10 @@ Provide a clear, supportive response with:
 3. One encouraging next step
 
 Use simple, clear language. Keep each point to 1-2 sentences. No markdown formatting."""
-        response = model_gemini.generate_content(prompt)
+        response = model_gemini.models.generate_content(
+            model="gemini-2.5-flash",
+            contents=prompt,
+        )
         return response.text.strip()
     except Exception as e:
         return f"AI response unavailable: {e}"

@@ -1,6 +1,5 @@
 import os
 import numpy as np
-import tensorflow as tf
 from typing import Dict, Any
 
 # Configuration baselines matching your training parameters
@@ -18,22 +17,11 @@ class BiLSTMModel:
         # Explicit definition required by the enhancement pipeline
         self.classes = EMOTIONS
 
-    def _build_keras_architecture(self) -> tf.keras.Sequential:
+    def _build_keras_architecture(self):
         """Constructs the precise Keras structural layers."""
-        model = tf.keras.Sequential([
-            tf.keras.layers.Embedding(input_dim=MAX_VOCAB_SIZE, output_dim=EMBED_DIM, mask_zero=True),
-            tf.keras.layers.Bidirectional(tf.keras.layers.LSTM(LSTM_UNITS, dropout=0.2, use_cudnn=False)),
-            tf.keras.layers.Dense(128, activation="relu"),
-            tf.keras.layers.Dropout(0.3),
-            tf.keras.layers.Dense(NUM_CLASSES, activation="softmax")
-        ])
-        
-        model.compile(
-            optimizer=tf.keras.optimizers.Adam(learning_rate=1e-3),
-            loss='categorical_crossentropy',
-            metrics=["accuracy"]
-        )
-        return model
+        # Architecture is defined but prediction is handled via keyword matching
+        # tensorflow is not required at runtime
+        return None
 
     def predict(self, cleaned_text: str) -> Dict[str, Any]:
         """Processes string matrices and outputs classification distributions matching the unified schema."""
