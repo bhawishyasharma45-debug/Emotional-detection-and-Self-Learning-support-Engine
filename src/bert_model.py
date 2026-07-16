@@ -1,13 +1,11 @@
 import os
 import pickle
 import numpy as np
-import torch
-from transformers import AutoTokenizer, AutoModelForSequenceClassification
 
 class BERTEmotionClassifier:
     def __init__(self):
-        # Setup execution device baseline
-        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        # Device set lazily in load_model to avoid importing torch at module level
+        self.device = None
         self.tokenizer = None
         self.model = None
         
@@ -21,6 +19,11 @@ class BERTEmotionClassifier:
     def load_model(self, model_path='models/bert_emotion_model_final'):
         """Loads the fine-tuned BERT model and maps token architectures."""
         try:
+            # Lazy imports — only loaded if model path exists to save memory on free tier
+            import torch
+            from transformers import AutoTokenizer, AutoModelForSequenceClassification
+
+            self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
             self.tokenizer = AutoTokenizer.from_pretrained(model_path)
             self.model = AutoModelForSequenceClassification.from_pretrained(model_path)
             self.model.to(self.device)
@@ -53,6 +56,7 @@ class BERTEmotionClassifier:
             else:
                 probs = np.array([0.05, 0.80, 0.05, 0.05, 0.05])  # Pure positive/neutral baseline
         else:
+            import torch
             inputs = self.tokenizer(text, return_tensors="pt", truncation=True, padding=True)
             inputs = {k: v.to(self.device) for k, v in inputs.items()}
 
