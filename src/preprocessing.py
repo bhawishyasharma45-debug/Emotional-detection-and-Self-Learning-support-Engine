@@ -3,20 +3,26 @@ import nltk
 import numpy as np
 from typing import Dict, Any
 
-# Safely check/download NLTK components
-try:
-    nltk.data.find('tokenizers/punkt')
-except LookupError:
-    nltk.download('punkt')
+# Safely download required NLTK data (works on Render and locally)
+for _resource in ('punkt', 'punkt_tab', 'stopwords'):
+    try:
+        nltk.data.find(f'tokenizers/{_resource}' if _resource != 'stopwords' else f'corpora/{_resource}')
+    except LookupError:
+        nltk.download(_resource, quiet=True)
 
 def clean_text(text: str) -> str:
     """Cleans unstructured student inputs preserving emotional punctuation."""
     if not text:
         return ""
-    
+
     text = str(text).lower()
     text = re.sub(r'[^a-zA-Z\s,!]', '', text)
-    tokens = nltk.word_tokenize(text)
+
+    try:
+        tokens = nltk.word_tokenize(text)
+    except Exception:
+        # Fallback: simple whitespace split if NLTK data is unavailable
+        tokens = text.split()
     
     skip_words = {'the', 'a', 'an'}
     cleaned_tokens = [t for t in tokens if t not in skip_words and len(t) > 1]
